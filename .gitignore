@@ -2,7 +2,5 @@
 *.h5
 *.dat
 *.csv
-*.npz
-*.npy
-*.png
-*.jpg
+*.log
+*.out
