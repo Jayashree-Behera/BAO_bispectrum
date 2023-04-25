@@ -1,0 +1,24 @@
+=============== CAMB Processing ===============
+
+ WARNING: nu_mass_degeneracies ignored when share_delta_neff
+Om_b h^2             =  0.022600
+Om_c h^2             =  0.113000
+Om_nu h^2            =  0.000640
+Om_Lambda            =  0.703360
+Om_K                 =  0.000000
+Om_m (1-Om_K-Om_L)   =  0.296640
+100 theta (CosmoMC)  =  1.034031
+N_eff (total)        =  3.046000
+ 1 nu, g= 1.0153 m_nu*c^2/k_B/T_nu0=    353.71 (m_nu=  0.060 eV)
+Age of universe/GYr  =  13.949
+zstar                =  1088.83
+r_s(zstar)/Mpc       =  146.11
+100*theta            =  1.034323
+zdrag                =  1059.78
+r_s(zdrag)/Mpc       =  148.74
+k_D(zstar) Mpc       =  0.1395
+100*theta_D          =  0.159372
+z_EQ (if v_nu=1)     =  3240.38
+100*theta_EQ         =  0.838576
+tau_recomb/Mpc       =  284.44  tau_now/Mpc =  14410.6
+ at z =   0.500000000      sigma8 (all matter)=  0.624579191    
