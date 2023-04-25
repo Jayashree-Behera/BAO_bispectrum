@@ -1,0 +1,12 @@
+sbatch --array=1-1000 [script name]
+
+sbatch --array=1, 2-5, 6, 7 [script name]
+
+#run command
+sbatch --array=0-96 mcmc.job
+
+#check status
+squeue --me
+
+#cancel
+scancel (job_id)
