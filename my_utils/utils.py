@@ -1,43 +1,49 @@
-# This python script contains the basic formulas for power spectruma and bispectrum.
-
 import numpy as np
 import scipy.interpolate as interpolate
 from scipy.optimize import curve_fit
+from cosmoprimo import *
 
 from scipy import integrate
 from numba import jit
 
-def smoothPk(k,A0,keq,a0,a2,a4):
+def smoothPk(k,A0,keq,a0,a2,a4,n):
     k = np.array(k)
     q = k/keq
     L = np.log(2*np.exp(1)+1.8*q)
     C = 14.2+731/(1+62.5*q)
     T = L/(L+C*(q**2))
-    return A0*(a0+(T**2)*(k)+a2*(k**2)+a4*(k**4))
+    return A0*(a0+(T**2)*(k**n)) #+a2*(k**2)+a4*(k**4))
 
-def fit_smoothPk(Pkcamb,k):
+def fit_smoothPk(Pkcamb,k,method = "cosmoprimo"):
     if len(Pkcamb.shape) == 2:
         Pcamb = Pkcamb[:,1]
         kcamb = Pkcamb[:,0]
     else:
         Pcamb = Pkcamb
         kcamb = k
-    kcamb[0]=0
-    Pcamb[0]=0
-    fpk = np.interp(k,kcamb,Pcamb)
-    Ps = lambda k,A0,keq,a0,a2,a4 : smoothPk(k,A0,keq,a0,a2,a4)
-    p0 = [30000,0.05,0,0,0]
-    popt, _ = curve_fit(Ps, k ,fpk, p0, (1/k)**2, maxfev=100000)
-    return fpk,smoothPk(k,*popt)
+    kcamb[0]=0.001
+    Pcamb[0]=0.001
+    if method == "cosmoprimo":
+        pk_interpolator = PowerSpectrumInterpolator1D(kcamb,Pcamb)
+        fpk = pk_interpolator(k)
+        pk_smooth_interpolator = PowerSpectrumBAOFilter(pk_interpolator, engine='wallish2018').smooth_pk_interpolator()
+        ps = pk_smooth_interpolator(k)
+    else:
+        fpk = np.interp(k,kcamb,Pcamb)
+        Ps = lambda k,A0,keq,a0,a2,a4,n : smoothPk(k,A0,keq,a0,a2,a4,n)
+        p0 = [30000,0.05,0,0,0,0]
+        popt, _ = curve_fit(Ps, k ,fpk, p0, (1/k)**2, maxfev=1000000)
+        ps = smoothPk(k,*popt)
+    return fpk,ps
 
-def less_baoPk(Pkcamb,k,E):
-    fpk,ps = fit_smoothPk(Pkcamb,k)
+def less_baoPk(Pkcamb,k,E,method = "cosmoprimo"):
+    fpk,ps = fit_smoothPk(Pkcamb,k,method)
     less_bao = (fpk/ps - 1)*np.exp(-(E*k)**2)
     return fpk, ps, ps*(1+less_bao)
 
-def cutslice(kmin,kmax,kk,bkm,bk,bknm,bkn,bk_mol):
+def cutslice(kmin,kmax,kk,bkm,bk,bknm,bkn,bk_mol,bao):
     is_good = np.ones(kk.shape[0], '?')
-    for i in range(3):is_good &= (kk[:, i] > kmin) & (kk[:, i] < kmax)
+    for i in range(3):is_good &= (kk[:, i] > kmin) & (kk[:, i] <= kmax)
     kg = kk[is_good, :]
     bg = bkm[is_good]
     bgn = bknm[is_good]
@@ -45,7 +51,8 @@ def cutslice(kmin,kmax,kk,bkm,bk,bknm,bkn,bk_mol):
     hartlapf = (nmocks-1.0)/(nmocks-nbins-2.0)
 
     glam_cov = np.cov(bk[is_good, :], rowvar=True)#/ nmocks
-    glam_std = np.std(bk[is_good], axis=1)    
+    glam_std = np.std(bk[is_good], axis=1)   
+    bao_cov = np.cov(bao[is_good, :], rowvar=True)
 
     mol_cov_ = np.cov(bk_mol[is_good,:], rowvar=True)
     mol_std_ = np.diagonal(mol_cov_)**0.5
@@ -54,7 +61,7 @@ def cutslice(kmin,kmax,kk,bkm,bk,bknm,bkn,bk_mol):
     scaled_cov = red_cov*np.outer(glam_std, glam_std)
 
     print(f'kmax={kmax}, kmin={kmin}, nbins={nbins}, nmocks={nmocks}, hf = {hartlapf}')
-    return kg,bg,bgn,glam_cov,scaled_cov,hartlapf
+    return kg,bg,bgn,glam_cov,scaled_cov,hartlapf,bao_cov
 
 @jit
 def Bisp(var, parc, pk1,pk2,pk3,linear = True):
@@ -66,12 +73,16 @@ def Bisp(var, parc, pk1,pk2,pk3,linear = True):
     #apar, aper, f, b1, b2 = parc
     f, b1, b2 = parc
 
-    mu12 = (k3**2 - k1**2 - k2**2)/(2*k1*k2)
+    # mu12 = (k3**2 - k1**2 - k2**2)/(2*k1*k2)
+    mu12 = (k1**2 + k2**2 - k3**2)/(2*k1*k2)
+    mu31 = (k3**2 + k1**2 - k2**2)/(2*k3*k1)
+    mu23 = (k2**2 + k3**2 - k1**2)/(2*k2*k3)
+    
     mu2 = mu1*mu12 - np.sqrt(1 - mu1**2)*np.sqrt(1 - mu12**2)*np.cos(phi12)
     mu3 = -(mu1*k1 + mu2*k2)/k3
 
-    mu31 = -(k1 + k2*mu12)/k3
-    mu23 = -(k1*mu12 + k2)/k3
+    # mu31 = -(k1 + k2*mu12)/k3
+    # mu23 = -(k1*mu12 + k2)/k3
 
     #print(k1,k2,k3, np.arccos(mu12),np.arccos(mu31),np.arccos(mu23))
 
@@ -119,7 +130,7 @@ def Bi0(kk, pk1, pk2, pk3, f, b1, b2, S0, S1):
         ans,_ = integrate.dblquad(func, -1, 1, lambda x: 0, lambda x: np.pi)
         ans = ans + S0 + S1 * (pk1[i] + pk2[i] + pk3[i]) # Add extra nuissance params. This term is not a part of scoccimaro equation. Skip this step if you want to use only scoccimaro eq.
         out.append(2*Y00*ans)
-    return out
+    return np.array(out)
 
 def Bi_wiggle(kk,pk1,pk2,pk3,pkn1,pkn2,pkn3,f,b1,b2,S0,S1):
     '''
@@ -133,10 +144,7 @@ def Bi_wiggle(kk,pk1,pk2,pk3,pkn1,pkn2,pkn3,f,b1,b2,S0,S1):
     B_nbao = Bi0(kk,pkn1,pkn2,pkn3,f,b1,b2,S0,S1)
     B_wig = np.array(B_full)/np.array(B_nbao)
     return B_wig
-
-def Bi_meas(kk,pk1,pk2,pk3,pkn1,pkn2,pkn3,alpha,f,b1,b2,f1,b11,b21):
-    meas_b0 = Bi_wiggle(alpha*kk,pk1,pk2,pk3,pkn1,pkn2,pkn3,f,b1,b2)*Bi0(kk,pkn1,pkn2,pkn3,f1,b11,b21)
-    return meas_b0
+    
 
 if __name__ == '__main__':
     Bisp(var,parc,pk1,pk2,pk3,pars=(2000**3,1000**3))
