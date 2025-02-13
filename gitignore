@@ -52,16 +52,18 @@ coverage.xml
 cover/
 
 #Added by Shree
-.npy
-.png
-.pdf
-.jpg
-.dat
-.txt
-.npy
-.h5
-.npz
-.fits
+*.npy
+*.png
+*.pdf
+*.jpg
+*.dat
+*.txt
+*.h5
+*.npy
+*.npz
+*.fits
+*.out
+
 
 # Translations
 *.mo
