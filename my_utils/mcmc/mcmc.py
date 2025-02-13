@@ -14,12 +14,13 @@ def magnitude(lst):
     return np.array([10**int(math.floor(math.log10(np.abs(x)))) for x in lst])
 
 class RunMCMC:
-    def __init__(self,model,x,y,icov,config_path):
+    def __init__(self,model,x,y,icov,config_path,reset = True):
         self.model = model
         self.config = read_params(config_path)
         self.x = x
         self.y = y
         self.icov = icov
+        self.reset = reset
 
     def ln_like(self,params):
         '''
@@ -70,14 +71,14 @@ class RunMCMC:
 
         np.random.seed(self.config['base']['random_state'])
 
-        starting_params = guess + 1e-4 * np.random.randn(nwalkers,ndim)
+        starting_params = guess + 1e-5 * np.random.randn(nwalkers,ndim)
 
-        with Pool() as pool:
+        with Pool(64) as pool:
             filename = output_path
             backend = emcee.backends.HDFBackend(filename)
             #print("Initial size: {0}".format(backend.iteration))
-
-            backend.reset(nwalkers, ndim)
+            if self.reset:
+                backend.reset(nwalkers, ndim)
             sampler = emcee.EnsembleSampler(nwalkers, ndim, self.ln_prob,
                                             pool=pool,backend=backend)
 
